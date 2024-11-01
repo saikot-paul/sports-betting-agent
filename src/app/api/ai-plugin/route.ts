@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-
+import { GameKeys } from "@/src/app/models/game";
 
 const key = JSON.parse(process.env.BITTE_KEY || "{}");
 const config = JSON.parse(process.env.BITTE_CONFIG || "{}");
@@ -24,29 +24,68 @@ export async function GET() {
         "x-mb": {
             "account-id": key.accountId,
             assistant: {
-                name: "Your Assistant",
-                description: "An assistant that answers with blockchain information",
-                instructions: "You answer with a list of blockchains. Use the tools to get blockchain information.",
-                tools: [{ type: "generate-transaction" }]
+                name: "Sports Betting Assistant",
+                description: "An assistant that assists users in sports betting",
+                instructions: "You answer with what what the user requires and help them navigate their betting options and where to place their bets. Should a user ask for active seasons ask them which league they are interested in the most next. Should they ask for the odds of a league then ask them if they want to bet.",
+                tools: [{ type: "generate-transaction" }, { type: "get-active" }, { type: "get-odds" }]
             },
         },
         paths: {
-            "/api/tools/get-blockchains": {
+            "/api/tools/get-active": {
                 get: {
-                    summary: "get blockchain information",
-                    description: "Respond with a list of blockchains",
-                    operationId: "get-blockchains",
+                    summary: "Gets list of active leagues that can be bet on",
+                    description: "Fetches and returns a list of leagues with active games that can be bet on",
+                    operationId: "get-active",
                     responses: {
                         "200": {
                             description: "Successful response",
                             content: {
                                 "application/json": {
                                     schema: {
+                                        type: "array",
+                                        items: {
+                                            type: "object",
+                                            properties: {
+                                                key: {
+                                                    type: "string",
+                                                    description: "Unique identifier for the game",
+                                                },
+                                                group: {
+                                                    type: "string",
+                                                    description: "Group classification of the game",
+                                                },
+                                                league: {
+                                                    type: "string",
+                                                    description: "League associated with the game",
+                                                },
+                                                description: {
+                                                    type: "string",
+                                                    description: "Description of the game",
+                                                },
+                                                active: {
+                                                    type: "boolean",
+                                                    description: "Indicates if the game is active",
+                                                },
+                                                has_outrights: {
+                                                    type: "boolean",
+                                                    description: "Indicates if the game includes outright bets",
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                        "500": {
+                            description: "Error response",
+                            content: {
+                                "application/json": {
+                                    schema: {
                                         type: "object",
                                         properties: {
-                                            message: {
+                                            error: {
                                                 type: "string",
-                                                description: "The list of blockchains",
+                                                description: "Error message",
                                             },
                                         },
                                     },
@@ -56,9 +95,107 @@ export async function GET() {
                     },
                 },
             },
+            "/api/tools/get-odds": {
+                get: {
+                    operationId: "getOddsForLeague",
+                    summary: "Returns the list of odds for active games, given a league",
+                    description: "Finds active games for a league and then returns the betting odds per each game",
+                    parameters: [
+                        {
+                            name: "sportLeague",
+                            in: "query",
+                            required: true,
+                            schema: {
+                                type: "string",
+                                enum: Object.values(GameKeys)
+                            },
+                            description: "The league for which to get odds"
+                        }
+                    ],
+                    responses: {
+                        "200": {
+                            description: "Successful response",
+                            content: {
+                                "application/json": {
+                                    schema: {
+                                        type: "array",
+                                        items: {
+                                            type: "object",
+                                            properties: {
+                                                id: { type: "string", description: "Unique identifier for the game" },
+                                                sport_title: { type: "string", description: "Title of the sport or league" },
+                                                commence_time: { type: "string", format: "date-time", description: "Game start time" },
+                                                home_team: { type: "string", description: "Home team name" },
+                                                away_team: { type: "string", description: "Away team name" },
+                                                bookmakers: {
+                                                    type: "array",
+                                                    items: {
+                                                        type: "object",
+                                                        properties: {
+                                                            title: { type: "string", description: "Bookmaker name" },
+                                                            last_update: { type: "string", format: "date-time", description: "Last update time" },
+                                                            markets: {
+                                                                type: "array",
+                                                                items: {
+                                                                    type: "object",
+                                                                    properties: {
+                                                                        market_type: { type: "string", description: "Market type (e.g., h2h, spreads)" },
+                                                                        outcomes: {
+                                                                            type: "array",
+                                                                            items: {
+                                                                                type: "object",
+                                                                                properties: {
+                                                                                    team: { type: "string", description: "Team or outcome name" },
+                                                                                    price: { type: "number", description: "Betting odds" },
+                                                                                    point: { type: "number", nullable: true, description: "Point spread (if applicable)" }
+                                                                                }
+                                                                            },
+                                                                            description: "Possible outcomes"
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "400": {
+                            description: "Invalid league parameter",
+                            content: {
+                                "application/json": {
+                                    schema: {
+                                        type: "object",
+                                        properties: {
+                                            error: { type: "string", description: "Error message" }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "500": {
+                            description: "Internal server error",
+                            content: {
+                                "application/json": {
+                                    schema: {
+                                        type: "object",
+                                        properties: {
+                                            error: { type: "string", description: "Error message" }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
             "/api/tools/get-user": {
                 get: {
-                    summary: "get user information",
+                    summary: "Get user information",
                     description: "Respond with user account ID",
                     operationId: "get-user",
                     responses: {
@@ -80,171 +217,6 @@ export async function GET() {
                         },
                     },
                 },
-            },
-            "/api/tools/reddit": {
-                get: {
-                    summary: "get Reddit frontpage posts",
-                    description: "Fetch and return a list of posts from the Reddit frontpage",
-                    operationId: "get-reddit-posts",
-                    responses: {
-                        "200": {
-                            description: "Successful response",
-                            content: {
-                                "application/json": {
-                                    schema: {
-                                        type: "object",
-                                        properties: {
-                                            posts: {
-                                                type: "array",
-                                                items: {
-                                                    type: "object",
-                                                    properties: {
-                                                        title: {
-                                                            type: "string",
-                                                            description: "The title of the post"
-                                                        },
-                                                        author: {
-                                                            type: "string",
-                                                            description: "The username of the post author"
-                                                        },
-                                                        subreddit: {
-                                                            type: "string",
-                                                            description: "The subreddit where the post was made"
-                                                        },
-                                                        score: {
-                                                            type: "number",
-                                                            description: "The score (upvotes) of the post"
-                                                        },
-                                                        num_comments: {
-                                                            type: "number",
-                                                            description: "The number of comments on the post"
-                                                        },
-                                                        url: {
-                                                            type: "string",
-                                                            description: "The URL of the post on Reddit"
-                                                        }
-                                                    }
-                                                },
-                                                description: "An array of Reddit posts"
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        "500": {
-                            description: "Error response",
-                            content: {
-                                "application/json": {
-                                    schema: {
-                                        type: "object",
-                                        properties: {
-                                            error: {
-                                                type: "string",
-                                                description: "Error message"
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "/api/tools/twitter": {
-                get: {
-                    operationId: "getTwitterShareIntent",
-                    summary: "Generate a Twitter share intent URL",
-                    description: "Creates a Twitter share intent URL based on provided parameters",
-                    parameters: [
-                        {
-                            name: "text",
-                            in: "query",
-                            required: true,
-                            schema: {
-                                type: "string"
-                            },
-                            description: "The text content of the tweet"
-                        },
-                        {
-                            name: "url",
-                            in: "query",
-                            required: false,
-                            schema: {
-                                type: "string"
-                            },
-                            description: "The URL to be shared in the tweet"
-                        },
-                        {
-                            name: "hashtags",
-                            in: "query",
-                            required: false,
-                            schema: {
-                                type: "string"
-                            },
-                            description: "Comma-separated hashtags for the tweet"
-                        },
-                        {
-                            name: "via",
-                            in: "query",
-                            required: false,
-                            schema: {
-                                type: "string"
-                            },
-                            description: "The Twitter username to attribute the tweet to"
-                        }
-                    ],
-                    responses: {
-                        "200": {
-                            description: "Successful response",
-                            content: {
-                                "application/json": {
-                                    schema: {
-                                        type: "object",
-                                        properties: {
-                                            twitterIntentUrl: {
-                                                type: "string",
-                                                description: "The generated Twitter share intent URL"
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        "400": {
-                            description: "Bad request",
-                            content: {
-                                "application/json": {
-                                    schema: {
-                                        type: "object",
-                                        properties: {
-                                            error: {
-                                                type: "string",
-                                                description: "Error message"
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        "500": {
-                            description: "Error response",
-                            content: {
-                                "application/json": {
-                                    schema: {
-                                        type: "object",
-                                        properties: {
-                                            error: {
-                                                type: "string",
-                                                description: "Error message"
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
             },
             "/api/tools/create-transaction": {
                 get: {
@@ -349,48 +321,6 @@ export async function GET() {
                     }
                 }
             },
-            "/api/tools/coinflip": {
-                get: {
-                    summary: "Coin flip",
-                    description: "Flip a coin and return the result (heads or tails)",
-                    operationId: "coinFlip",
-                    responses: {
-                        "200": {
-                            description: "Successful response",
-                            content: {
-                                "application/json": {
-                                    schema: {
-                                        type: "object",
-                                        properties: {
-                                            result: {
-                                                type: "string",
-                                                description: "The result of the coin flip (heads or tails)",
-                                                enum: ["heads", "tails"]
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        "500": {
-                            description: "Error response",
-                            content: {
-                                "application/json": {
-                                    schema: {
-                                        type: "object",
-                                        properties: {
-                                            error: {
-                                                type: "string",
-                                                description: "Error message"
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
         },
     };
 
